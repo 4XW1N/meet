@@ -15,13 +15,11 @@ let currentCall;
 let myRoomCode = "";
 let isGuestMode = false;
 
-function generateFourDigitCode() {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
+// Read the unique PeerJS long ID string from the URL hash
 function getRoomCodeFromUrl() {
     const hash = window.location.hash.replace('#', '').trim();
-    if (hash && hash.length === 4 && !isNaN(hash)) {
+    // Validate that it has content and isn't just an empty string
+    if (hash && hash.length > 5) {
         return hash;
     }
     return null;
@@ -31,30 +29,20 @@ function initApp() {
     const urlRoomCode = getRoomCodeFromUrl();
 
     if (urlRoomCode) {
-        // GUEST MODE
+        // GUEST MODE: Joining someone else's room
         isGuestMode = true;
-        myRoomCode = generateFourDigitCode(); 
-        switchLayoutToCall();
-        remoteLabel.innerText = `Connecting to room: ${urlRoomCode}`;
-        
-        initPeerAndConnect(myRoomCode, urlRoomCode);
+        // Guest gets an auto-assigned long ID string from the PeerJS cloud server
+        initPeerAndConnect(null, urlRoomCode);
     } else {
-        // HOST MODE
-        myRoomCode = generateFourDigitCode();
-        // Clean URL construction specifically tailored for custom domains like meet.is-pro.dev
-        const fullShareableUrl = `${window.location.origin}/#${myRoomCode}`;
-        
-        if (displayLink) {
-            displayLink.innerText = fullShareableUrl;
-        }
-        
-        initPeerAndConnect(myRoomCode, null);
+        // HOST MODE: Creating a new room
+        // Host gets an auto-assigned long ID string from the PeerJS cloud server
+        initPeerAndConnect(null, null);
     }
 }
 
 function initPeerAndConnect(myCode, targetToCall) {
-    // Standardizing firewall circumvention to make sure handshakes land instantly
-    peer = new Peer(myCode, {
+    // Leave the ID parameter blank so PeerJS generates its global unique long ID string
+    peer = new Peer(undefined, {
         config: {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -64,27 +52,35 @@ function initPeerAndConnect(myCode, targetToCall) {
     });
 
     peer.on('open', async (id) => {
-        console.log("Registered on network with ID:", id);
+        myRoomCode = id;
+        console.log("Successfully registered on PeerJS with unique ID:", id);
+
         if (targetToCall) {
+            // Guest configurations
+            switchLayoutToCall();
+            remoteLabel.innerText = `Connecting to host...`;
             await getMediaAccess();
-            console.log("Dialing target peer room code:", targetToCall);
             currentCall = peer.call(targetToCall, localStream);
             setupStreamHandlers(currentCall);
+        } else {
+            // Host configurations: dynamically show the generated sharing link
+            const fullShareableUrl = `${window.location.origin}/#${myRoomCode}`;
+            if (displayLink) {
+                displayLink.innerText = fullShareableUrl;
+            }
         }
     });
 
     peer.on('error', (err) => {
-        console.error("PeerJS Core Error:", err.type, err.message);
-        if (err.type === 'unavailable-id') {
-            initApp(); 
-        } else if (err.type === 'peer-unavailable') {
-            alert("Room not found! Double check the 4-digit code and ensure the Host still has the window open.");
+        console.error("PeerJS Core Connection Error:", err.type, err.message);
+        if (err.type === 'peer-unavailable') {
+            alert("The host room could not be found. Please check your link or ensure the host still has the page open.");
             window.location.href = window.location.origin;
         }
     });
 
+    // Handle incoming connections from calls (for the Host)
     peer.on('call', async (call) => {
-        console.custom("Receiving call request from remote user...");
         currentCall = call;
         remoteLabel.innerText = `Connected Room`;
         
@@ -124,24 +120,24 @@ function switchLayoutToCall() {
 if (displayLink) {
     displayLink.addEventListener('click', () => {
         navigator.clipboard.writeText(displayLink.innerText);
+        const savedUrl = displayLink.innerText;
         displayLink.innerText = "Copied link! ✅";
         setTimeout(() => {
-            const fullShareableUrl = `${window.location.origin}/#${myRoomCode}`;
-            displayLink.innerText = fullShareableUrl;
+            displayLink.innerText = savedUrl;
         }, 2000);
     });
 }
 
 connectBtn.addEventListener('click', async () => {
     const remoteId = remoteIdInput.value.trim();
-    if (remoteId.length !== 4) {
-        alert("Please input a valid 4-digit numeric code.");
+    if (!remoteId) {
+        alert("Please paste a valid long string meeting code.");
         return;
     }
 
     await getMediaAccess();
     switchLayoutToCall();
-    remoteLabel.innerText = `Room: ${remoteId}`;
+    remoteLabel.innerText = `Connecting...`;
 
     currentCall = peer.call(remoteId, localStream);
     setupStreamHandlers(currentCall);
