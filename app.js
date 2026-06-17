@@ -1,82 +1,139 @@
-const displayId = document.getElementById('display-id');
+const homePage = document.getElementById('home-page');
+const callPage = document.getElementById('call-page');
+const displayLink = document.getElementById('display-link');
 const remoteIdInput = document.getElementById('remote-id-input');
 const connectBtn = document.getElementById('connect-btn');
 const localVideo = document.getElementById('local-video');
 const remoteVideo = document.getElementById('remote-video');
 const toggleMic = document.getElementById('toggle-mic');
 const toggleVideo = document.getElementById('toggle-video');
+const remoteLabel = document.getElementById('remote-label');
 
 let localStream;
 let peer;
 let currentCall;
+let myRoomCode = "";
+let isGuestMode = false;
 
-// 1. Get access to camera and microphone
-async function startLocalVideo() {
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localVideo.srcObject = localStream;
+// Helper: Generate clean 4 digit room strings
+function generateFourDigitCode() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+// Check if there is a hash code in the URL (e.g., meet.is-pro.dev/#2013)
+function getRoomCodeFromUrl() {
+    const hash = window.location.hash.replace('#', '').trim();
+    if (hash && hash.length === 4 && !isNaN(hash)) {
+        return hash;
+    }
+    return null;
+}
+
+// Initialize Application Engine Routing
+function initApp() {
+    const urlRoomCode = getRoomCodeFromUrl();
+
+    if (urlRoomCode) {
+        // GUEST MODE: Loaded directly via hashed address link
+        isGuestMode = true;
+        myRoomCode = generateFourDigitCode(); // Unique individual caller ID
+        switchLayoutToCall();
+        remoteLabel.innerText = `Connecting to room: ${urlRoomCode}`;
         
-        // Ask the user to input a custom 4 digit room code
-        let customCode = prompt("Enter a 4-digit code for your room (e.g., 1234):");
+        initPeerAndConnect(myRoomCode, urlRoomCode);
+    } else {
+        // HOST MODE: Regular Landing page generation rules
+        myRoomCode = generateFourDigitCode();
+        // Generates clean secure hash links like meet.is-pro.dev/#2013
+        const fullShareableUrl = `${window.location.origin}${window.location.pathname}#${myRoomCode}`;
+        displayLink.innerText = fullShareableUrl;
         
-        // Validation loop to ensure it's exactly 4 characters
-        while (!customCode || customCode.trim().length !== 4) {
-            customCode = prompt("Invalid! Please enter exactly 4 characters/digits:");
-        }
-        
-        initPeer(customCode.trim());
-    } catch (error) {
-        console.error("Error accessing media devices.", error);
-        alert("Please allow camera and microphone access to use this app.");
+        initPeerAndConnect(myRoomCode, null);
     }
 }
 
-// 2. Initialize PeerJS connection with a specific custom ID
-function initPeer(roomCode) {
-    // We pass the roomCode directly into the Peer constructor
-    peer = new Peer(roomCode);
+// Initialize structural Peer connection logic
+function initPeerAndConnect(myCode, targetToCall) {
+    peer = new Peer(myCode);
 
-    peer.on('open', (id) => {
-        displayId.innerText = id;
+    peer.on('open', async (id) => {
+        if (targetToCall) {
+            await getMediaAccess();
+            currentCall = peer.call(targetToCall, localStream);
+            setupStreamHandlers(currentCall);
+        }
     });
 
     peer.on('error', (err) => {
         console.error(err);
         if (err.type === 'unavailable-id') {
-            alert("That 4-digit code is already taken by someone else! Page will reload.");
-            window.location.reload();
-        } else {
-            alert("An error occurred: " + err.message);
+            initApp(); 
         }
     });
 
-    // 3. Handle incoming calls
-    peer.on('call', (call) => {
+    // Handle incoming connections from calls
+    peer.on('call', async (call) => {
         currentCall = call;
-        call.answer(localStream);
+        remoteLabel.innerText = `Connected Room`;
         
-        call.on('stream', (remoteStream) => {
-            remoteVideo.srcObject = remoteStream;
-        });
+        if (!localStream) {
+            await getMediaAccess();
+        }
+        
+        switchLayoutToCall();
+        call.answer(localStream);
+        setupStreamHandlers(call);
     });
 }
 
-// 4. Place a call to a remote 4-digit code
-connectBtn.addEventListener('click', () => {
+function setupStreamHandlers(callObject) {
+    callObject.on('stream', (remoteStream) => {
+        remoteVideo.srcObject = remoteStream;
+    });
+}
+
+// Request Hardware Feed Permissions
+async function getMediaAccess() {
+    try {
+        if (!localStream) {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localVideo.srcObject = localStream;
+        }
+    } catch (error) {
+        console.error("Hardware access rejected.", error);
+        alert("Camera and microphone authorization required.");
+    }
+}
+
+// Structural Screen Swap Layout adjustments
+function switchLayoutToCall() {
+    homePage.classList.add('hidden');
+    callPage.classList.remove('hidden');
+}
+
+// Copy Code link click interaction event listener
+displayLink.addEventListener('click', () => {
+    navigator.clipboard.writeText(displayLink.innerText);
+    alert("Meeting URL link copied to clipboard successfully!");
+});
+
+// Manual Input Field Connect Event Listener
+connectBtn.addEventListener('click', async () => {
     const remoteId = remoteIdInput.value.trim();
     if (remoteId.length !== 4) {
-        alert("Please enter a valid 4-digit room code.");
+        alert("Please provide a 4-digit room target number.");
         return;
     }
 
+    await getMediaAccess();
+    switchLayoutToCall();
+    remoteLabel.innerText = `Room: ${remoteId}`;
+
     currentCall = peer.call(remoteId, localStream);
-    
-    currentCall.on('stream', (remoteStream) => {
-        remoteVideo.srcObject = remoteStream;
-    });
+    setupStreamHandlers(currentCall);
 });
 
-// 5. Mute/Unmute Control Logic
+// Media Control System Audio Track Toggles
 toggleMic.addEventListener('click', () => {
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
@@ -86,6 +143,7 @@ toggleMic.addEventListener('click', () => {
     }
 });
 
+// Media Control System Video Track Toggles
 toggleVideo.addEventListener('click', () => {
     const videoTrack = localStream.getVideoTracks()[0];
     if (videoTrack) {
@@ -95,5 +153,15 @@ toggleVideo.addEventListener('click', () => {
     }
 });
 
-// Initialize on page load
-startLocalVideo();
+// Listen for hash changes manually if a user pastes a new one while on the page
+window.addEventListener('hashchange', () => {
+    window.location.reload();
+});
+
+// Live clock string interval script configuration
+setInterval(() => {
+    const now = new Date();
+    document.getElementById('live-clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " • " + now.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'});
+}, 1000);
+
+initApp();
