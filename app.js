@@ -15,12 +15,10 @@ let currentCall;
 let myRoomCode = "";
 let isGuestMode = false;
 
-// Helper: Generate clean 4 digit room strings
 function generateFourDigitCode() {
     return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-// Check if there is a hash code in the URL (e.g., meet.is-pro.dev/#2013)
 function getRoomCodeFromUrl() {
     const hash = window.location.hash.replace('#', '').trim();
     if (hash && hash.length === 4 && !isNaN(hash)) {
@@ -29,50 +27,64 @@ function getRoomCodeFromUrl() {
     return null;
 }
 
-// Initialize Application Engine Routing
 function initApp() {
     const urlRoomCode = getRoomCodeFromUrl();
 
     if (urlRoomCode) {
-        // GUEST MODE: Loaded directly via hashed address link
+        // GUEST MODE
         isGuestMode = true;
-        myRoomCode = generateFourDigitCode(); // Unique individual caller ID
+        myRoomCode = generateFourDigitCode(); 
         switchLayoutToCall();
         remoteLabel.innerText = `Connecting to room: ${urlRoomCode}`;
         
         initPeerAndConnect(myRoomCode, urlRoomCode);
     } else {
-        // HOST MODE: Regular Landing page generation rules
+        // HOST MODE
         myRoomCode = generateFourDigitCode();
-        // Generates clean secure hash links like meet.is-pro.dev/#2013
-        const fullShareableUrl = `${window.location.origin}${window.location.pathname}#${myRoomCode}`;
-        displayLink.innerText = fullShareableUrl;
+        // Clean URL construction specifically tailored for custom domains like meet.is-pro.dev
+        const fullShareableUrl = `${window.location.origin}/#${myRoomCode}`;
+        
+        if (displayLink) {
+            displayLink.innerText = fullShareableUrl;
+        }
         
         initPeerAndConnect(myRoomCode, null);
     }
 }
 
-// Initialize structural Peer connection logic
 function initPeerAndConnect(myCode, targetToCall) {
-    peer = new Peer(myCode);
+    // Standardizing firewall circumvention to make sure handshakes land instantly
+    peer = new Peer(myCode, {
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        }
+    });
 
     peer.on('open', async (id) => {
+        console.log("Registered on network with ID:", id);
         if (targetToCall) {
             await getMediaAccess();
+            console.log("Dialing target peer room code:", targetToCall);
             currentCall = peer.call(targetToCall, localStream);
             setupStreamHandlers(currentCall);
         }
     });
 
     peer.on('error', (err) => {
-        console.error(err);
+        console.error("PeerJS Core Error:", err.type, err.message);
         if (err.type === 'unavailable-id') {
             initApp(); 
+        } else if (err.type === 'peer-unavailable') {
+            alert("Room not found! Double check the 4-digit code and ensure the Host still has the window open.");
+            window.location.href = window.location.origin;
         }
     });
 
-    // Handle incoming connections from calls
     peer.on('call', async (call) => {
+        console.custom("Receiving call request from remote user...");
         currentCall = call;
         remoteLabel.innerText = `Connected Room`;
         
@@ -92,7 +104,6 @@ function setupStreamHandlers(callObject) {
     });
 }
 
-// Request Hardware Feed Permissions
 async function getMediaAccess() {
     try {
         if (!localStream) {
@@ -101,27 +112,30 @@ async function getMediaAccess() {
         }
     } catch (error) {
         console.error("Hardware access rejected.", error);
-        alert("Camera and microphone authorization required.");
+        alert("Please enable Camera & Microphone access permissions in your browser address bar.");
     }
 }
 
-// Structural Screen Swap Layout adjustments
 function switchLayoutToCall() {
     homePage.classList.add('hidden');
     callPage.classList.remove('hidden');
 }
 
-// Copy Code link click interaction event listener
-displayLink.addEventListener('click', () => {
-    navigator.clipboard.writeText(displayLink.innerText);
-    alert("Meeting URL link copied to clipboard successfully!");
-});
+if (displayLink) {
+    displayLink.addEventListener('click', () => {
+        navigator.clipboard.writeText(displayLink.innerText);
+        displayLink.innerText = "Copied link! ✅";
+        setTimeout(() => {
+            const fullShareableUrl = `${window.location.origin}/#${myRoomCode}`;
+            displayLink.innerText = fullShareableUrl;
+        }, 2000);
+    });
+}
 
-// Manual Input Field Connect Event Listener
 connectBtn.addEventListener('click', async () => {
     const remoteId = remoteIdInput.value.trim();
     if (remoteId.length !== 4) {
-        alert("Please provide a 4-digit room target number.");
+        alert("Please input a valid 4-digit numeric code.");
         return;
     }
 
@@ -133,7 +147,6 @@ connectBtn.addEventListener('click', async () => {
     setupStreamHandlers(currentCall);
 });
 
-// Media Control System Audio Track Toggles
 toggleMic.addEventListener('click', () => {
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
@@ -143,7 +156,6 @@ toggleMic.addEventListener('click', () => {
     }
 });
 
-// Media Control System Video Track Toggles
 toggleVideo.addEventListener('click', () => {
     const videoTrack = localStream.getVideoTracks()[0];
     if (videoTrack) {
@@ -153,15 +165,16 @@ toggleVideo.addEventListener('click', () => {
     }
 });
 
-// Listen for hash changes manually if a user pastes a new one while on the page
 window.addEventListener('hashchange', () => {
     window.location.reload();
 });
 
-// Live clock string interval script configuration
 setInterval(() => {
     const now = new Date();
-    document.getElementById('live-clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " • " + now.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'});
+    const clockEl = document.getElementById('live-clock');
+    if (clockEl) {
+        clockEl.innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " • " + now.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'});
+    }
 }, 1000);
 
 initApp();
