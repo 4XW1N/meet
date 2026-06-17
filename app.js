@@ -18,7 +18,6 @@ let isGuestMode = false;
 // Read the unique PeerJS long ID string from the URL hash
 function getRoomCodeFromUrl() {
     const hash = window.location.hash.replace('#', '').trim();
-    // Validate that it has content and isn't just an empty string
     if (hash && hash.length > 5) {
         return hash;
     }
@@ -31,11 +30,9 @@ function initApp() {
     if (urlRoomCode) {
         // GUEST MODE: Joining someone else's room
         isGuestMode = true;
-        // Guest gets an auto-assigned long ID string from the PeerJS cloud server
         initPeerAndConnect(null, urlRoomCode);
     } else {
         // HOST MODE: Creating a new room
-        // Host gets an auto-assigned long ID string from the PeerJS cloud server
         initPeerAndConnect(null, null);
     }
 }
@@ -53,18 +50,18 @@ function initPeerAndConnect(myCode, targetToCall) {
 
     peer.on('open', async (id) => {
         myRoomCode = id;
-        console.log("Successfully registered on PeerJS with unique ID:", id);
+        console.log("Registered on PeerJS server with ID:", id);
 
         if (targetToCall) {
-            // Guest configurations
+            // Guest Flow
             switchLayoutToCall();
             remoteLabel.innerText = `Connecting to host...`;
             await getMediaAccess();
             currentCall = peer.call(targetToCall, localStream);
             setupStreamHandlers(currentCall);
         } else {
-            // Host configurations: dynamically show the generated sharing link
-            const fullShareableUrl = `${window.location.origin}/#${myRoomCode}`;
+            // Host Flow: Update the displayLink directly with the new long string address
+            const fullShareableUrl = `${window.location.origin}${window.location.pathname}#${myRoomCode}`;
             if (displayLink) {
                 displayLink.innerText = fullShareableUrl;
             }
@@ -113,25 +110,35 @@ async function getMediaAccess() {
 }
 
 function switchLayoutToCall() {
-    homePage.classList.add('hidden');
-    callPage.classList.remove('hidden');
+    if(homePage && callPage) {
+        homePage.classList.add('hidden');
+        callPage.classList.remove('hidden');
+    }
 }
 
 if (displayLink) {
     displayLink.addEventListener('click', () => {
-        navigator.clipboard.writeText(displayLink.innerText);
-        const savedUrl = displayLink.innerText;
-        displayLink.innerText = "Copied link! ✅";
-        setTimeout(() => {
-            displayLink.innerText = savedUrl;
-        }, 2000);
+        if (myRoomCode) {
+            navigator.clipboard.writeText(displayLink.innerText);
+            const savedUrl = displayLink.innerText;
+            displayLink.innerText = "Copied link! ✅";
+            setTimeout(() => {
+                displayLink.innerText = savedUrl;
+            }, 2000);
+        }
     });
 }
 
 connectBtn.addEventListener('click', async () => {
     const remoteId = remoteIdInput.value.trim();
-    if (!remoteId) {
-        alert("Please paste a valid long string meeting code.");
+    // If they paste the whole link, strip everything out except the hash component
+    let targetedId = remoteId;
+    if (remoteId.includes('#')) {
+        targetedId = remoteId.split('#')[1].trim();
+    }
+
+    if (!targetedId) {
+        alert("Please enter or paste a valid meeting code/link.");
         return;
     }
 
@@ -139,7 +146,7 @@ connectBtn.addEventListener('click', async () => {
     switchLayoutToCall();
     remoteLabel.innerText = `Connecting...`;
 
-    currentCall = peer.call(remoteId, localStream);
+    currentCall = peer.call(targetedId, localStream);
     setupStreamHandlers(currentCall);
 });
 
