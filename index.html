@@ -3,41 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QuickMeet - 4 Digit Rooms</title>
+    <title>QuickMeet - Premium Video Meetings</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js" defer></script>
     <script src="app.js" defer></script>
 </head>
 <body>
 
-    <header>
-        <div class="logo">QuickMeet</div>
-        <div class="connection-controls">
-            <div>
-                <span class="id-label">Room Code:</span>
-                <strong id="display-id">Setting up...</strong>
+    <div id="home-page" class="home-container">
+        <header class="home-header">
+            <div class="logo">✨ QuickMeet</div>
+            <div class="current-time" id="live-clock">00:00 • PM</div>
+        </header>
+
+        <main class="home-hero">
+            <div class="hero-left">
+                <h1>Premium video meetings.<br>Now free for everyone.</h1>
+                <p class="subtitle">We re-engineered the service we built for secure business meetings to make it free and available on any device.</p>
+                
+                <div class="action-box">
+                    <div class="host-panel">
+                        <span class="action-label">Your Shareable Meeting Link</span>
+                        <div class="code-display-row">
+                            <div class="generated-code" id="display-link" style="font-size: 16px; cursor: pointer;" title="Click to copy">⚡ Loading link...</div>
+                        </div>
+                    </div>
+
+                    <div class="divider-line"></div>
+
+                    <div class="join-panel">
+                        <input type="text" id="remote-id-input" maxlength="4" placeholder="Enter 4-digit code">
+                        <button class="join-btn" id="connect-btn">Join Meeting</button>
+                    </div>
+                </div>
             </div>
-            <input type="text" id="remote-id-input" maxlength="4" placeholder="4-Digit Code">
-            <button class="call-btn" id="connect-btn">Join Room</button>
-        </div>
-    </header>
 
-    <main class="video-container">
-        <div class="video-wrapper">
-            <video id="local-video" autoplay muted playsinline></video>
-            <div class="video-label">You</div>
-        </div>
-        
-        <div class="video-wrapper">
-            <video id="remote-video" autoplay playsinline></video>
-            <div class="video-label">Remote User</div>
-        </div>
-    </main>
+            <div class="hero-right">
+                <div class="carousel-card">
+                    <div class="carousel-img-placeholder">🎙️ 📷</div>
+                    <h3>Get a link to share</h3>
+                    <p>Click your generated link box above to copy it, send it to friends, and they will join your room instantly when clicked.</p>
+                </div>
+            </div>
+        </main>
+    </div>
 
-    <div class="controls-bar">
-        <button class="control-btn" id="toggle-mic" title="Mute/Unmute Mic">🎙️</button>
-        <button class="control-btn" id="toggle-video" title="Turn Camera On/Off">📷</button>
-        <button class="control-btn end-call" id="hangup-btn" title="End Call" onclick="window.location.reload();">❌</button>
+    <div id="call-page" class="call-container hidden">
+        <main class="video-container">
+            <div class="video-wrapper">
+                <video id="local-video" autoplay muted playsinline></video>
+                <div class="video-label">You</div>
+            </div>
+            
+            <div class="video-wrapper">
+                <video id="remote-video" autoplay playsinline></video>
+                <div class="video-label" id="remote-label">Remote User</div>
+            </div>
+        </main>
+
+        <div class="controls-bar">
+            <button class="control-btn" id="toggle-mic" title="Mute/Unmute Mic">🎙️</button>
+            <button class="control-btn" id="toggle-video" title="Turn Camera On/Off">📷</button>
+            <button class="control-btn end-call" id="hangup-btn" title="Leave Call" onclick="window.location.href = window.location.origin;">❌</button>
+        </div>
     </div>
 
 </body>
