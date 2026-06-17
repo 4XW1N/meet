@@ -15,7 +15,6 @@ let currentCall;
 let myRoomCode = "";
 let isGuestMode = false;
 
-// Read the unique PeerJS long ID string from the URL hash
 function getRoomCodeFromUrl() {
     const hash = window.location.hash.replace('#', '').trim();
     if (hash && hash.length > 5) {
@@ -28,39 +27,49 @@ function initApp() {
     const urlRoomCode = getRoomCodeFromUrl();
 
     if (urlRoomCode) {
-        // GUEST MODE: Joining someone else's room
         isGuestMode = true;
         initPeerAndConnect(null, urlRoomCode);
     } else {
-        // HOST MODE: Creating a new room
         initPeerAndConnect(null, null);
     }
 }
 
 function initPeerAndConnect(myCode, targetToCall) {
-    // Leave the ID parameter blank so PeerJS generates its global unique long ID string
+    // Standardizing a worldwide firewall circumvention array (STUN + TURN Relay)
     peer = new Peer(undefined, {
         config: {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                // Public open-relay fallback tunnels to bridge distinct cellular/Wi-Fi topologies
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelay',
+                    credential: 'openrelay'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelay',
+                    credential: 'openrelay'
+                }
             ]
         }
     });
 
     peer.on('open', async (id) => {
         myRoomCode = id;
-        console.log("Registered on PeerJS server with ID:", id);
+        console.log("Registered on cross-network PeerJS server with ID:", id);
 
         if (targetToCall) {
-            // Guest Flow
             switchLayoutToCall();
-            remoteLabel.innerText = `Connecting to host...`;
+            remoteLabel.innerText = `Connecting via secure tunnel...`;
             await getMediaAccess();
             currentCall = peer.call(targetToCall, localStream);
             setupStreamHandlers(currentCall);
         } else {
-            // Host Flow: Update the displayLink directly with the new long string address
             const fullShareableUrl = `${window.location.origin}${window.location.pathname}#${myRoomCode}`;
             if (displayLink) {
                 displayLink.innerText = fullShareableUrl;
@@ -69,14 +78,13 @@ function initPeerAndConnect(myCode, targetToCall) {
     });
 
     peer.on('error', (err) => {
-        console.error("PeerJS Core Connection Error:", err.type, err.message);
+        console.error("PeerJS Connectivity Error Context:", err.type);
         if (err.type === 'peer-unavailable') {
-            alert("The host room could not be found. Please check your link or ensure the host still has the page open.");
+            alert("Meeting room not found. Ensure the host is still connected and online.");
             window.location.href = window.location.origin;
         }
     });
 
-    // Handle incoming connections from calls (for the Host)
     peer.on('call', async (call) => {
         currentCall = call;
         remoteLabel.innerText = `Connected Room`;
@@ -105,7 +113,6 @@ async function getMediaAccess() {
         }
     } catch (error) {
         console.error("Hardware access rejected.", error);
-        alert("Please enable Camera & Microphone access permissions in your browser address bar.");
     }
 }
 
@@ -131,16 +138,12 @@ if (displayLink) {
 
 connectBtn.addEventListener('click', async () => {
     const remoteId = remoteIdInput.value.trim();
-    // If they paste the whole link, strip everything out except the hash component
     let targetedId = remoteId;
     if (remoteId.includes('#')) {
         targetedId = remoteId.split('#')[1].trim();
     }
 
-    if (!targetedId) {
-        alert("Please enter or paste a valid meeting code/link.");
-        return;
-    }
+    if (!targetedId) return;
 
     await getMediaAccess();
     switchLayoutToCall();
