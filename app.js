@@ -1,7 +1,6 @@
-// ================= AGORA SECURE PARAMETERS =================
-const AGORA_APP_ID = "a84703b63daf406b80ea7b69dd6f8ed8"; 
-const AGORA_APP_CERTIFICATE = "bb48b20c35de485b9fa6b668381ba4dd";
-// ===========================================================
+// ================= AGORA SERVERLESS CONFIGURATION =================
+const AGORA_APP_ID = "4257cb1e47914812af9be07840d21922"; 
+// ==================================================================
 
 const homePage = document.getElementById('home-page');
 const callPage = document.getElementById('call-page');
@@ -18,27 +17,7 @@ let myRoomName = "";
 
 function getRoomFromHash() {
     const hash = window.location.hash.replace('#', '').trim();
-    // Validate that the code is exactly a 4-digit pattern
     return hash.length === 4 ? hash : null;
-}
-
-// Generates a secure token purely on the client side for GitHub Pages setup
-function generateClientToken(channelName, uid) {
-    const expireTimeInSeconds = 3600; // Token active for 1 hour
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expireTimeInSeconds;
-
-    const base64UrlEncode = (str) => btoa(str).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-    
-    const tokenHeader = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const tokenPayload = base64UrlEncode(JSON.stringify({
-        appId: AGORA_APP_ID,
-        channelName: channelName,
-        uid: uid,
-        exp: privilegeExpiredTs
-    }));
-
-    return `${tokenHeader}.${tokenPayload}.${base64UrlEncode(AGORA_APP_CERTIFICATE.slice(0, 8))}`;
 }
 
 function initApp() {
@@ -49,7 +28,7 @@ function initApp() {
         switchLayoutToCall();
         joinAgoraRoom(myRoomName);
     } else {
-        // Generates a clean, simple 4-digit numeric code room ID
+        // Generates a clean 4-digit code
         myRoomName = Math.floor(1000 + Math.random() * 9000).toString();
         const fullShareableUrl = `${window.location.origin}${window.location.pathname}#${myRoomName}`;
         if (displayLink) {
@@ -64,10 +43,9 @@ async function joinAgoraRoom(roomName) {
 
     try {
         const uid = Math.floor(Math.random() * 100000);
-        const token = generateClientToken(roomName, uid);
-
-        // Connect securely over Agora's global video routing system
-        await agoraClient.join(AGORA_APP_ID, roomName, token, uid);
+        
+        // Pass "null" instead of a token because Testing Mode skips the security check!
+        await agoraClient.join(AGORA_APP_ID, roomName, null, uid);
 
         [localTracks.audioTrack, localTracks.videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
 
@@ -75,11 +53,11 @@ async function joinAgoraRoom(roomName) {
         localTracks.videoTrack.play(`video-player-${uid}`);
 
         await agoraClient.publish(Object.values(localTracks));
-        console.log("Stream successfully securely published onto Agora Cloud network.");
+        console.log("Stream successfully published to the Agora cloud router!");
 
     } catch (error) {
         console.error("Agora Connection Failed:", error);
-        alert("Authentication error. Please confirm your App ID and App Certificate match your dashboard exactly.");
+        alert("Failed to connect. Make sure your browser has camera permissions allowed!");
     }
 }
 
@@ -144,7 +122,6 @@ connectBtn.addEventListener('click', () => {
     const rawVal = remoteIdInput.value.trim();
     let parsedRoom = rawVal;
     
-    // Support parsing out the 4 digit code if they pasted a full URL
     if (rawVal.includes('#')) {
         parsedRoom = rawVal.split('#')[1].trim();
     }
